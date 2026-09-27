@@ -1,0 +1,22 @@
+# Teardown through the pipeline: plan the removal, then remove.
+substitutions:
+  _TF_STATE_BUCKET: ""
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - id: "0-init"
+    name: "hashicorp/terraform:1.9.8"
+    dir: "terraform"
+    args: ["init", "-input=false", "-backend-config=bucket=${_TF_STATE_BUCKET}"]
+
+  - id: "1-plan-destroy"
+    name: "hashicorp/terraform:1.9.8"
+    dir: "terraform"
+    args: ["plan", "-destroy", "-input=false", "-var=project_id=$PROJECT_ID", "-out=tfdestroy"]
+
+  - id: "2-destroy"
+    name: "hashicorp/terraform:1.9.8"
+    dir: "terraform"
+    args: ["apply", "-input=false", "-auto-approve", "tfdestroy"]
