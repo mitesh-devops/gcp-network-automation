@@ -4,7 +4,7 @@
 # Push-to-main trigger: _APPLY=true   -> all four steps (real build)
 
 substitutions:
-  _TF_STATE_BUCKET: ""
+  _TF_STATE_BUCKET: "rapidops-rnd-tfstate"
   _APPLY: "false"
 
 options:

@@ -1,6 +1,6 @@
 # Teardown through the pipeline: plan the removal, then remove.
 substitutions:
-  _TF_STATE_BUCKET: ""
+  _TF_STATE_BUCKET: "rapidops-rnd-tfstate"
 
 options:
   logging: CLOUD_LOGGING_ONLY

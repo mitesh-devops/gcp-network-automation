@@ -35,30 +35,39 @@ The guardrail is Checkov rule `CKV_GCP_2` ("firewall must not allow SSH from 0.0
 Note the three values it prints at the end: region, service account and `_TF_STATE_BUCKET`.
 The default region is `asia-south1`. To use a different one, pass it as the second argument and also change `region`/`zone` in `terraform/variables.tf`.
 
-### A3. Put this folder on GitHub
-Create an empty repository on GitHub (for example `gcp-network-automation`), then:
+### A3. Put this folder on GitHub (as a **private** repo for now)
+Create an empty **private** repository on GitHub named `gcp-network-automation`, with no README, .gitignore or license. Then:
 ```bash
-git init -b main
+git init
+git branch -M main          # makes sure the branch is called main, not master
 git add .
 git commit -m "Initial commit: network as code"
 git remote add origin https://github.com/<you>/gcp-network-automation.git
 git push -u origin main
 ```
+When Git asks for a password, paste a GitHub **personal access token** (fine-grained: only this repo, *Contents: Read and write*).
+
+**Why private?** The pull request trigger runs the code in the pull request as `terraform-sa`. On a public repo, anyone could open a pull request and run their own commands with your cloud permissions. Keep the repo private until the triggers are deleted after the session, then make it public for students.
 
 ### A4. Connect GitHub to Cloud Build
-Console › **Cloud Build › Repositories (2nd gen)** › **Create host connection** › GitHub, region **asia-south1**. Install the Cloud Build GitHub App on your account, then **Link repository** and pick this repo.
+Console › **Cloud Build › Repositories (2nd gen)** › **Create host connection** › GitHub, region **asia-south1**. Approve the Cloud Build GitHub App on your account and install it for this repo, then **Link repository** and pick this repo.
 
 ### A5. Create the three triggers
-Console › **Cloud Build › Triggers** › region **asia-south1** › **Create trigger**. For all three, set:
-- Repository: the one you linked in A4
-- Service account: `terraform-sa@<project-id>.iam.gserviceaccount.com`
-- Substitution variable `_TF_STATE_BUCKET` = `<project-id>-tfstate`
+Console › **Cloud Build › Triggers** › region **asia-south1** (the same region as the connection) › **Create trigger**. For all three, set:
+- **Repository:** the one you linked in A4 (2nd gen)
+- **Configuration:** Cloud Build configuration file, with the location shown in the table below
+- **Substitution variables** (under Advanced): `_TF_STATE_BUCKET` = `<project-id>-tfstate`, spelled exactly, with the leading underscore
+- **Service account:** `terraform-sa@<project-id>.iam.gserviceaccount.com`, not the default Cloud Build account
 
 | Trigger name | Event | Config file | Extra substitution |
 |---|---|---|---|
 | `demo-pr-preview` | Pull request, base branch `^main$` | `cloudbuild.yaml` | `_APPLY` = `false` |
 | `demo-main-apply` | Push to branch `^main$` | `cloudbuild.yaml` | `_APPLY` = `true` |
 | `demo-destroy` | Manual invocation, branch `main` | `cloudbuild-destroy.yaml` | none |
+
+For `demo-pr-preview`, set **Comment control** to **"Required except for owners and collaborators"**. Your own pull requests then run automatically, while anyone else's only run after you comment `/gcbrun`. This matters most if the repo is ever public while the trigger exists.
+
+The console warning about pull requests from anyone with read access is expected. The private repo plus this comment control setting is the answer to it.
 
 ### A6. Rehearse the whole demo once (Part B, stages 1–5)
 This checks everything works, and it also makes GitHub aware of the check name needed in A7.
@@ -69,6 +78,11 @@ GitHub › repo **Settings › Branches › Add classic branch protection rule**
 - Leave **Do not allow bypassing the above settings** unticked, so you (the admin) can still push directly to `main` for the Provision demo.
 
 What students will see on the bad pull request: a red ✗, and GitHub saying **merging is blocked**. As the admin you'll also see a "bypass branch protections" checkbox. That's worth pointing out: even the admin would have to deliberately override the safety check, and that override is recorded.
+
+**If GitHub says "Rules on your private repos can't be enforced until you upgrade":** this repo lives under a GitHub Organization on the Free plan, which only enforces branch protection (classic rules and rulesets alike) on private repos for Team/Enterprise orgs. Pick one:
+- **Upgrade the org to Team.** The clean fix if you'll reuse this org for future sessions.
+- **Do the rehearsal under your personal account instead of the org**, on GitHub Pro (or higher) — personal accounts don't need Team/Enterprise for private-repo protection, just Pro.
+- **Flip the repo to public just for A7–A8**, then back to private. The `demo-pr-preview` comment-control setting from A5 already keeps strangers from triggering builds on your credentials while it's public, so the exposure window is limited to the rehearsal. Re-check the repo visibility is back to private before the real session, per the note in A3.
 
 ### A8. Reset after rehearsal
 After the rehearsal's Destroy stage, remove the HTTPS rule from `main` without triggering a build:
@@ -159,11 +173,18 @@ This works because the firewall allows port 22 from Google IAP only.
 ---
 
 ## After the session
-- The Destroy stage already removed all network resources.
-- Optionally run `./setup/cleanup-after-session.sh <project-id>` to delete the state bucket and service account, then delete the three triggers and the GitHub connection in the console.
+1. The Destroy stage already removed all network resources.
+2. Delete the three triggers (Cloud Build › Triggers) and the GitHub connection (Cloud Build › Repositories), or run:
+   ```bash
+   for T in demo-pr-preview demo-main-apply demo-destroy; do gcloud builds triggers delete $T --region=asia-south1 --quiet; done
+   gcloud builds connections delete github-conn --region=asia-south1 --quiet   # use your connection's name
+   ```
+3. Optionally run `./setup/cleanup-after-session.sh <project-id>` to delete the state bucket and service account.
+4. **Only now** make the repo public (GitHub › Settings › General › Change visibility) and share the link with students.
 
 ## Troubleshooting
 - **Build fails at `0-init` with a permission error:** check the trigger uses `terraform-sa` and that `_TF_STATE_BUCKET` is spelled exactly `<project-id>-tfstate`.
 - **"Error acquiring the state lock":** two builds ran at once. Wait for the first to finish and re-run.
 - **Website doesn't load:** wait another minute (nginx is still installing), and make sure you used `http://`, not `https://`.
+- **"src refspec main does not match any" when pushing:** your branch is called `master`. Run `git branch -M main`, then push again.
 - **`demo-pr-preview` not listed in branch protection:** it only appears after it has run once on a pull request (step A6).
