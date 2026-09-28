@@ -9,7 +9,6 @@ cat > /var/www/html/index.html << 'HTML'
 <body style="font-family: sans-serif; text-align: center; padding-top: 15vh; background: #16202E; color: #F5F3EE;">
   <h1>It works on first run</h1>
   <p>This network and server were built by Terraform, run by Cloud Build.</p>
-  <p style="color: #F29A5C;">Nobody clicked in the cloud console. We only touched Git.</p>
 </body>
 </html>
 HTML
